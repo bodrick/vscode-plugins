@@ -1,0 +1,7 @@
+{
+  "compilerOptions": {
+    "rootDir": "."
+  },
+  "extends": "./tsconfig.build.json",
+  "include": ["src", "typings", "tests", "tools", "index.d.ts"]
+}
