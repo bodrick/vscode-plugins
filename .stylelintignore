@@ -1,0 +1,9 @@
+/packages/**/temp/
+/packages/**/coverage/
+/packages/**/dist/
+/packages/**/node_modules/
+/packages/**/templates
+
+**/*.js
+**/*.cjs
+**/*.mjs

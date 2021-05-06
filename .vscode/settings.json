@@ -1,0 +1,12 @@
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  // An array of language ids which should be validated by ESLint
+  "eslint.validate": ["javascript", "typescript"],
+  "files.associations": {
+    "**/*.json": "jsonc",
+    "**/package.json": "json"
+  },
+  "files.trimTrailingWhitespace": true,
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "typescript.tsdk": "node_modules\\typescript\\lib"
+}

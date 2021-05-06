@@ -1,92 +1,66 @@
-# Import Cost [![Build Status](https://travis-ci.org/wix/import-cost.svg?branch=master)](https://travis-ci.org/wix/import-cost) [![Build status](https://ci.appveyor.com/api/projects/status/ko48qav9qqb8fv8u?svg=true)](https://ci.appveyor.com/project/shahata/import-cost)
-[![](https://vsmarketplacebadge.apphb.com/version/wix.vscode-import-cost.svg)](https://marketplace.visualstudio.com/items?itemName=wix.vscode-import-cost) [![](https://vsmarketplacebadge.apphb.com/installs/wix.vscode-import-cost.svg)](https://marketplace.visualstudio.com/items?itemName=wix.vscode-import-cost)
+# import-cost [![Build Status](https://travis-ci.org/wix/import-cost.svg?branch=master)](https://travis-ci.org/wix/import-cost) [![Build status](https://ci.appveyor.com/api/projects/status/ko48qav9qqb8fv8u?svg=true)](https://ci.appveyor.com/project/shahata/import-cost)
 
-This extension will display inline in the editor the size of the imported package.
-The extension utilizes webpack in order to detect the imported size.
+This node module comes to help people who would like to develop extensions similar to [Import Cost VSCode extension](https://marketplace.visualstudio.com/items?itemName=wix.vscode-import-cost) for additional IDE's such as Atom, WebStorm, Sublime, Vim etc.
 
-![Example Image](https://citw.dev/_next/image?url=%2Fposts%2Fimport-cost%2F1quov3TFpgG2ur7myCLGtsA.gif&w=1080&q=75)
+Use freely to implement extensions for other IDE (or contribute them to this repository)
 
-This project includes implementation of:
- * Import Cost [VSCode extension](packages/vscode-import-cost) - install it from [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=wix.vscode-import-cost)
- * Import Cost [Node module](packages/import-cost) - use freely to implement extensions for other IDE (or contribute them to this repository)
+You can see good reference for how to work with this module in the [VSCode extension implementation](https://github.com/wix/import-cost/blob/master/packages/vscode-import-cost/src/extension.ts)
 
-Enjoy!
-
-#### Third-Party Editor Plugin Links
-
-* [Jetbrains IDE Plugin](https://github.com/denofevil/import-cost)
-* [Atom Package](https://atom.io/packages/import-cost-atom)
-* [Vim Plugin](https://github.com/wix/import-cost/tree/master/packages/coc-import-cost) ([coc.nvim](https://github.com/neoclide/coc.nvim) extension)
-* [Vim Plugin](https://github.com/yardnsm/vim-import-cost)
-
-
-## Why & How
-I detail the Why and How in this blog post:
-https://citw.dev/posts/import-cost
-
-## Developer guidelines
-
-In this project we use [lerna](https://lernajs.io/) for managing the multiple packages.
-
-### Getting started
-
-In order to start working all you need to do is:
-```sh
-$ git clone git@github.com:wix/import-cost.git
-$ npm install
-$ code packages/import-cost
-$ code packages/vscode-import-cost
-```
-
-Once VSCode workspaces are open:
-* Hit `F5` to run tests in `import-cost`
-* Hit `F5` to run the `vscode-import-cost` extension in debug mode
-
-### Applying changes
-
-Thanks to lerna, we have a symbolic link in the `vscode-import-cost` node modules folder to the local `import-cost`, which makes applying changes very easy. You can verify that link exists by running the following command:
+## How to use
 
 ```sh
-$ ls -la packages/vscode-import-cost/node_modules | grep import-cost
-lrwxr-xr-x    1 shahart  staff    17 Aug  6 09:38 import-cost -> ../../import-cost
+npm install --save import-cost
 ```
 
-If anything goes wrong and link does not exist, just run the following commands at the root of this project and lerna will sort it out:
-```sh
-$ git clean -xdf
-$ npm install
+```js
+import {importCost, cleanup, JAVASCRIPT, TYPESCRIPT} from 'import-cost';
+
+const emitter = importCost(fileName, fileContents, JAVASCRIPT /* or TYPESCRIPT */);
+emitter.on('error', e => /* handle parse error of file, usually just log & ignore */);
+emitter.on('start', packages => /* mark those packages as "calculating..." */);
+emitter.on('calculated', package => /* show size of this single package */);
+emitter.on('done', packages => /* show sizes of all those packages */);
+emitter.removeAllListeners(); /* ask to stop getting events in case file was updated */)
+
+// ...
+
+cleanup(); /* do this when you shutdown your extension in order to kill our thread pool */
 ```
 
-After you make any changes to the `import-cost` node module, don't forget to trigger transpilation in order to see those changes when running the `vscode-import-cost` extension:
-```sh
-$ npm test
-```
+## API
 
-### Publishing changes
+Usage as you can see above is pretty straight forward, `importCost()` gets three parameters:
 
-When you are ready to publish a new version of the extension, you first need to publish a new version of `import-cost` (unless nothing changed there). This is done by first commiting all your changes, then simply run the following commands:
-```sh
-$ cd packages/import-cost
-$ npm version patch | minor | major
-$ git commit -a -m "releasing version X.X.X"
-$ git push
-$ npm publish
-```
+1) `fileName` - This is a `string` representing the full path to the file that is being processed. We need full file path since we need to look inside `node_modules` folder of the file in question
+2) `fileContents` - This is a `string` which contains the actual content of the file. We need it because in IDE extension it is usually much faster to get contents from IDE then reading it from filesystem. Also, obviously changes to the file might not have been saved yet, we want to work on the file as the user types to it.
+3) `language` - This effects which AST parser we will use to lookup the imports in the file. As you can see above, you pass either `JAVASCRIPT` or `TYPESCRIPT` to it. Typically IDE can tell you the language of the file, better use the correct API of your IDE then rely on extensions.
 
-Then go ahead and release the extension with almost same steps (except for last one):
-```sh
-$ cd packages/vscode-import-cost
-$ npm version patch | minor | major
-$ git commit -a -m "releasing version X.X.X"
-$ git push
-$ git clean -xdf && npm install && vsce publish
-```
+In response, `importCost()` returns a standard Node `EventEmitter`. You can read about event emitters in [Node docs](https://nodejs.org/api/events.html#events_class_eventemitter), but typically all you need to know is that you can register a callback for various events we emit using `emitter.on(eventName, callback)`. We also recommend you un-register using `emitter.removeAllListeners()` when the file in question changes, this will help you not be confused with any results that are no longer relevant to that file.
 
-See how in the last step we had to clean everything and do a clean `npm install` in the extension folder? This is an important step so that `vsce publish` will bundle everything correctly when publishing the extension. After that's done, you'll need to run following command so that lerna will sort everything out again:
-```
-$ cd ../..
-$ git clean -xdf
-$ npm install
-```
+## Events
 
-Don't forget to update README.md with details of what is new in the released version...
+Following are the events you can listen on for the returned emitter.
+
+### emitter.on('error', e => /*...*/)
+
+The emitter will emit an `'error'` event for any error that caused it to stop working on the task at hand. Typically, you will not get any other event from the emitter after this error happened. Usually error will be that we failed to parse the file, but that's not really something that you need to act on since it is perfectly fine that user's code is sometimes not valid while he types. `e` will contain the error details, feel free to log it somewhere for cases it might be useful.
+
+### emitter.on('start', packages => /*...*/)
+
+The emitter will emit a `'start'` event right after it finished parsing the file and knows which imports are going to be calculated. The callback will receive an `Array` of `{fileName, line}` objects. Typically this would be a good time for your extension to mark those lines in the file as being calculated.
+
+### emitter.on('calculated', package => /*...*/)
+
+The emitter will emit a `'calculated'` event for each of the packages as results arrive from our thread pool. The callback will receive a `{fileName, line, size, gzip}` object. Typically this would be where your extension displays the result in the appropriate line. The `size` in case we failed to calculate (mostly because of missing dependency) will be `0`.
+
+### emitter.on('done', packages => /*...*/)
+
+The emitter will emit a `'done'` event once we have results for all of the packages. The callback will receive an `Array` of `{fileName, line, size, gzip}` object. This is not super helpful since by now you already received a `'calculated'` event for each one of the packages in this array. However, it is a pretty good checkpoint to clear any decorations in lines that do not appear on this list and were left hanging because of some race condition edge cases.
+
+### emitter.removeAllListeners()
+
+As mentioned above, we recommend you un-register all of your event listeners using `emitter.removeAllListeners()` when the file in question changes, this will help you not be confused with any results that are no longer to that file.
+
+## Cleanup
+
+As mentioned above, we use a thread pool for doing the calculations. When your extension terminates, your IDE will typically send you some notification of that. It is important that you handle this notification and invoke `cleanup()` in order to kill the thread pool.

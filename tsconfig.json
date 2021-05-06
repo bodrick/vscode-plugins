@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "checkJs": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "esnext"
+  },
+  "exclude": ["**/node_modules", "**/dist", "**/temp", "**/templates"]
+}
