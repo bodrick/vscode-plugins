@@ -2,67 +2,54 @@ import fs from 'fs';
 import path from 'path';
 import pkgDir from 'pkg-dir';
 
-function parseJson(dir) {
-    const pkg = path.join(dir, 'package.json');
-    return JSON.parse(fs.readFileSync(pkg, 'utf-8'));
+export function parseJson(directory: string) {
+    const packagePath = path.join(directory, 'package.json');
+    return JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
 }
-
-function getPackageName(pkg) {
-    const pkgParts = pkg.name.split('/');
-    let pkgName = pkgParts.shift();
-    if (pkgName.startsWith('@')) {
-        pkgName = path.join(pkgName, pkgParts.shift());
-    }
-    return pkgName;
+export function getPackageName(packageName: string) {
+    const scopedPackageRegex = /((?:@\w+\/))?(?<package>[\w-.]+)/;
+    return scopedPackageRegex.exec(packageName)?.groups?.package ?? packageName;
 }
 
 /**
  * @param {Object} pkg
  * @returns {string} The location of a node_modules folder containing this package.
  */
-function getPackageModuleContainer(pkg) {
-    let currentDir = path.dirname(pkg.fileName);
-    let foundDir = '';
-    const pkgName = getPackageName(pkg);
+export function getPackageModuleContainer(package_: any) {
+    let currentDirectory = path.dirname(package_.fileName);
+    let foundDirectory = '';
+    const packageName = getPackageName(package_);
 
-    while (!foundDir) {
-        const projectDir = pkgDir.sync(currentDir);
-        if (!projectDir) {
-            throw new Error(`Package directory not found [${pkg.name}]`);
+    while (!foundDirectory) {
+        const projectDirectory = pkgDir.sync(currentDirectory);
+        if (!projectDirectory) {
+            throw new Error(`Package directory not found [${package_.name}]`);
         }
-        const modulesDirectory = path.join(projectDir, 'node_modules');
-        if (fs.existsSync(path.resolve(modulesDirectory, pkgName))) {
-            foundDir = modulesDirectory;
+        const modulesDirectory = path.join(projectDirectory, 'node_modules');
+        if (fs.existsSync(path.resolve(modulesDirectory, packageName))) {
+            foundDirectory = modulesDirectory;
         } else {
-            currentDir = path.resolve(currentDir, '..');
+            currentDirectory = path.resolve(currentDirectory, '..');
         }
     }
-    return foundDir;
+    return foundDirectory;
 }
 
 /**
  * @param {Object} pkg
  * @returns {string} The actual location on-disk for this package.
  */
-function getPackageDirectory(pkg) {
-    const pkgName = getPackageName(pkg);
+export function getPackageDirectory(package_: any) {
+    const packageName = getPackageName(package_);
 
-    const tmp = getPackageModuleContainer(pkg);
-    return path.resolve(tmp, pkgName);
+    const temporary = getPackageModuleContainer(package_);
+    return path.resolve(temporary, packageName);
 }
 
-function getPackageVersion(pkg) {
-    return `${getPackageName(pkg)}@${getPackageJson(pkg).version}`;
+export function getPackageJson(package_: any) {
+    return parseJson(getPackageDirectory(package_));
 }
 
-function getPackageJson(pkg) {
-    return parseJson(getPackageDirectory(pkg));
+export function getPackageVersion(package_: any) {
+    return `${getPackageName(package_)}@${getPackageJson(package_).version}`;
 }
-
-module.exports = {
-    getPackageJson,
-    getPackageModuleContainer,
-    getPackageDirectory,
-    getPackageVersion,
-    parseJson
-};

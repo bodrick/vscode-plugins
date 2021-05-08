@@ -1,5 +1,6 @@
+/* eslint-disable unicorn/no-array-reduce */
 import fs from 'fs';
-import MemoryFS from 'memory-fs';
+import MemoryFileSystem from 'memory-fs';
 import path from 'path';
 import pkgDir from 'pkg-dir';
 import tempy from 'tempy';
@@ -8,21 +9,23 @@ import { gzipSync } from 'zlib';
 
 import { getPackageJson, getPackageModuleContainer } from './utils';
 
-function getEntryPoint(packageInfo) {
-    const tmpFile = tempy.file({ extension: 'js' });
-    fs.writeFileSync(tmpFile, packageInfo.string, 'utf-8');
-    return tmpFile;
+function getEntryPoint(packageInfo: { fileName?: string; name?: string; string?: any }) {
+    const temporaryFile = tempy.file({ extension: 'js' });
+    fs.writeFileSync(temporaryFile, packageInfo.string, 'utf-8');
+    return temporaryFile;
 }
 
-function calcSize(packageInfo, callback) {
+export function calcSize(packageInfo: { fileName: string; name: string }, callback: any) {
+    const packageRootDirectory = pkgDir.sync(path.dirname(packageInfo.fileName));
+    if (packageRootDirectory === undefined) {
+        return;
+    }
+
     const entryPoint = getEntryPoint(packageInfo);
-    const packageRootDir = pkgDir.sync(path.dirname(packageInfo.fileName));
-    const modulesDirectory = path.join(packageRootDir, 'node_modules');
+    const modulesDirectory = path.join(packageRootDirectory, 'node_modules');
     const peers = getPackageJson(packageInfo).peerDependencies || {};
     const defaultExternals = ['react', 'react-dom'];
-    const externals = Object.keys(peers)
-        .concat(defaultExternals)
-        .filter((p) => p !== packageInfo.name);
+    const externals = [...Object.keys(peers), ...defaultExternals].filter((p) => p !== packageInfo.name);
     const compiler = webpack({
         entry: entryPoint,
         plugins: [
@@ -30,7 +33,7 @@ function calcSize(packageInfo, callback) {
                 'process.env.NODE_ENV': JSON.stringify('production')
             }),
             new webpack.optimize.ModuleConcatenationPlugin(),
-            new webpack.IgnorePlugin(/^electron$/)
+            new webpack.IgnorePlugin({ resourceRegExp: /^electron$/ })
         ],
         resolve: {
             modules: [modulesDirectory, getPackageModuleContainer(packageInfo), 'node_modules'],
@@ -73,22 +76,27 @@ function calcSize(packageInfo, callback) {
             libraryTarget: 'commonjs2'
         }
     });
-    const memoryFileSystem = new MemoryFS();
+    const memoryFileSystem = new MemoryFileSystem();
     compiler.outputFileSystem = memoryFileSystem;
 
-    compiler.run((err, stats) => {
-        if (err || stats.toJson().errors.length > 0) {
-            callback({ err: err || stats.toJson().errors });
+    compiler.run((error, stats) => {
+        if (stats === undefined) {
+            return;
+        }
+        const statsJson = stats.toJson();
+        if (error || (statsJson.errors !== undefined && statsJson.errors.length > 0)) {
+            callback({ err: error || statsJson.errors });
         } else {
-            const bundles = stats.toJson().assets.filter((asset) => asset.name.includes('bundle.js'));
-            const size = bundles.reduce((sum, pkg) => sum + pkg.size, 0);
+            if (statsJson.assets === undefined) {
+                return;
+            }
+            const bundles = statsJson.assets.filter((asset) => asset.name.includes('bundle.js'));
+            const size = bundles.reduce((sum, package_) => sum + package_.size, 0);
             const gzip = bundles
                 .map((bundle) => path.join(process.cwd(), 'dist', bundle.name))
                 .map((bundleFile) => gzipSync(memoryFileSystem.readFileSync(bundleFile), {}).length)
                 .reduce((sum, gzipSize) => sum + gzipSize, 0);
-            callback(null, { size, gzip });
+            callback(undefined, { size, gzip });
         }
     });
 }
-
-module.exports = { calcSize };

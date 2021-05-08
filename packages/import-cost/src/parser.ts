@@ -1,16 +1,12 @@
 import cheerio from 'cheerio';
 
 import { getPackages as getPackagesFromJS } from './babel-parser';
+import { JAVASCRIPT, SVELTE, TYPESCRIPT, VUE } from './constants';
 
-export const TYPESCRIPT = 'typescript';
-export const JAVASCRIPT = 'javascript';
-export const VUE = 'vue';
-export const SVELTE = 'svelte';
-
-function extractScriptFromHtml(html: string) {
+function extractScriptFromHtml(html: string): string {
     try {
         const $ = cheerio.load(html);
-        return $('script').html();
+        return $('script').html() ?? '';
     } catch (error) {
         console.error(`ERR`, error);
         return '';

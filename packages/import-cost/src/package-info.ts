@@ -1,70 +1,104 @@
+/* eslint-disable unicorn/prefer-module */
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import pkgDir from 'pkg-dir';
 import workerFarm from 'worker-farm';
 
 import { DebounceError, debouncePromise } from './debounce-promise';
 import { getPackageVersion, parseJson } from './utils';
+import * as webpack from './webpack';
 
 const MAX_WORKER_RETRIES = 3;
-const MAX_CONCURRENT_WORKERS = require('os').cpus().length - 1;
+const MAX_CONCURRENT_WORKERS = os.cpus().length - 1;
 
 const debug = process.env.NODE_ENV === 'test';
-let workers = null;
+let workers: workerFarm.Workers;
 
-function initWorkers(config) {
-    workers = workerFarm(
+function initWorkers(maxCallTime?: number) {
+    return workerFarm(
         {
             maxConcurrentWorkers: debug ? 1 : MAX_CONCURRENT_WORKERS,
             maxRetries: MAX_WORKER_RETRIES,
-            maxCallTime: config.maxCallTime || Infinity
+            maxCallTime: maxCallTime || Number.POSITIVE_INFINITY
         },
         require.resolve('./webpack'),
         ['calcSize']
     );
 }
+const packagePath = pkgDir.sync(__dirname);
+if (packagePath === undefined) {
+    throw new Error('Unable to get package path');
+}
 
-const extensionVersion = parseJson(pkgDir.sync(__dirname)).version;
-let sizeCache = {};
-const versionsCache = {};
+const extensionVersion = parseJson(packagePath).version;
+let sizeCache: Record<string, any> = {};
+const versionsCache: Record<string, any> = {};
 const failedSize = { size: 0, gzip: 0 };
 export const cacheFileName = path.join(__dirname, `ic-cache-${extensionVersion}`);
 
-export async function getSize(pkg, config) {
+function readSizeCache() {
+    try {
+        if (Object.keys(sizeCache).length === 0 && fs.existsSync(cacheFileName)) {
+            sizeCache = JSON.parse(fs.readFileSync(cacheFileName, 'utf-8'));
+        }
+    } catch {
+        // silent error
+    }
+}
+
+function calcPackageSize(packageInfo: any, config: any) {
+    if (workers === undefined) {
+        workers = initWorkers(config);
+    }
+
+    return debouncePromise(`${packageInfo.fileName}#${packageInfo.line}`, (resolve: any, reject: any) => {
+        const calcSize = config.concurrent ? workers.calcSize : webpack.calcSize;
+        calcSize(packageInfo, (error: any, result: any) => (error ? reject(error) : resolve(result)));
+    });
+}
+
+function saveSizeCache() {
+    try {
+        const keys = Object.keys(sizeCache).filter((key) => {
+            const size = sizeCache[key] && sizeCache[key].size;
+            return typeof size === 'number' && size > 0;
+        });
+        // eslint-disable-next-line unicorn/no-array-reduce
+        const cache = keys.reduce((object, key) => ({ ...object, [key]: sizeCache[key] }), {});
+        if (Object.keys(cache).length > 0) {
+            fs.writeFileSync(cacheFileName, JSON.stringify(cache, undefined, 2), 'utf-8');
+        }
+    } catch {
+        // silent error
+    }
+}
+
+export async function getSize(package_: any, config: any) {
     readSizeCache();
     try {
-        versionsCache[pkg.string] = versionsCache[pkg.string] || getPackageVersion(pkg);
-    } catch (e) {
-        return { ...pkg, ...failedSize };
+        versionsCache[package_.string] = versionsCache[package_.string] || getPackageVersion(package_);
+    } catch {
+        return { ...package_, ...failedSize };
     }
-    const key = `${pkg.string}#${versionsCache[pkg.string]}`;
+
+    const key = `${package_.string}#${versionsCache[package_.string]}`;
     if (sizeCache[key] === undefined || sizeCache[key] instanceof Promise) {
         try {
-            sizeCache[key] = sizeCache[key] || calcPackageSize(pkg, config);
+            sizeCache[key] = sizeCache[key] || calcPackageSize(package_, config);
             sizeCache[key] = await sizeCache[key];
             saveSizeCache();
-        } catch (e) {
-            if (e === DebounceError) {
+        } catch (error) {
+            if (error === DebounceError) {
                 delete sizeCache[key];
-                throw e;
+                throw error;
             } else {
                 sizeCache[key] = failedSize;
-                return { ...pkg, ...sizeCache[key], error: e };
+                return { ...package_, ...sizeCache[key], error };
             }
         }
     }
-    return { ...pkg, ...sizeCache[key] };
-}
-
-function calcPackageSize(packageInfo, config) {
-    if (!workers) {
-        initWorkers(config);
-    }
-
-    return debouncePromise(`${packageInfo.fileName}#${packageInfo.line}`, (resolve, reject) => {
-        const calcSize = config.concurrent ? workers.calcSize : require('./webpack').calcSize;
-        calcSize(packageInfo, (err, result) => (err ? reject(err) : resolve(result)));
-    });
+    return { ...package_, ...sizeCache[key] };
 }
 
 export function clearSizeCache() {
@@ -74,34 +108,8 @@ export function clearSizeCache() {
     }
 }
 
-function readSizeCache() {
-    try {
-        if (Object.keys(sizeCache).length === 0 && fs.existsSync(cacheFileName)) {
-            sizeCache = JSON.parse(fs.readFileSync(cacheFileName, 'utf-8'));
-        }
-    } catch (e) {
-        // silent error
-    }
-}
-
-function saveSizeCache() {
-    try {
-        const keys = Object.keys(sizeCache).filter((key) => {
-            const size = sizeCache[key] && sizeCache[key].size;
-            return typeof size === 'number' && size > 0;
-        });
-        const cache = keys.reduce((obj, key) => ({ ...obj, [key]: sizeCache[key] }), {});
-        if (Object.keys(cache).length > 0) {
-            fs.writeFileSync(cacheFileName, JSON.stringify(cache, null, 2), 'utf-8');
-        }
-    } catch (e) {
-        // silent error
-    }
-}
-
 export function cleanup() {
     if (workers) {
         workerFarm.end(workers);
-        workers = null;
     }
 }
