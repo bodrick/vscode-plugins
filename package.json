@@ -1,6 +1,7 @@
 {
   "name": "@bodrick/vscode-plugins-monorepo",
   "private": true,
+  "license": "MIT",
   "engines": {
     "node": ">=12"
   },
