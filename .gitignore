@@ -73,5 +73,4 @@ target
 ic-cache-*
 package-lock.json
 jest_html_reporters.html
-
 .npmrc
