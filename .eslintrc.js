@@ -1,7 +1,7 @@
 // eslint-disable-next-line unicorn/prefer-module,import/no-extraneous-dependencies
 require('@rushstack/eslint-patch/modern-module-resolution');
 
-/** @type {import('eslint/lib/shared/types').ConfigData} */
+/** @type {import('eslint').Linter.Config} */
 // eslint-disable-next-line unicorn/prefer-module
 module.exports = {
     root: true,

@@ -1,4 +1,4 @@
-/** @type {import('eslint/lib/shared/types').ConfigData} */
+/** @type {import('eslint').Linter.Config} */
 module.exports = {
     extends: '../../.eslintrc.js',
     env: {

@@ -2,28 +2,34 @@ import fs from 'fs';
 import path from 'path';
 import pkgDir from 'pkg-dir';
 
+export interface Package {
+    fileName: string;
+    name: string;
+}
+
 export function parseJson(directory: string) {
     const packagePath = path.join(directory, 'package.json');
     return JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
 }
-export function getPackageName(packageName: string) {
+
+export function getPackageName(packageDetails: Package) {
     const scopedPackageRegex = /((?:@\w+\/))?(?<package>[\w-.]+)/;
-    return scopedPackageRegex.exec(packageName)?.groups?.package ?? packageName;
+    return scopedPackageRegex.exec(packageDetails.name)?.groups?.package ?? packageDetails.name;
 }
 
 /**
- * @param {Object} pkg
+ * @param {Package} packageDetails
  * @returns {string} The location of a node_modules folder containing this package.
  */
-export function getPackageModuleContainer(package_: any) {
-    let currentDirectory = path.dirname(package_.fileName);
+export function getPackageModuleContainer(packageDetails: Package): string {
+    let currentDirectory = path.dirname(packageDetails.fileName);
     let foundDirectory = '';
-    const packageName = getPackageName(package_);
+    const packageName = getPackageName(packageDetails);
 
     while (!foundDirectory) {
         const projectDirectory = pkgDir.sync(currentDirectory);
         if (!projectDirectory) {
-            throw new Error(`Package directory not found [${package_.name}]`);
+            throw new Error(`Package directory not found [${packageDetails.name}]`);
         }
         const modulesDirectory = path.join(projectDirectory, 'node_modules');
         if (fs.existsSync(path.resolve(modulesDirectory, packageName))) {
@@ -36,20 +42,19 @@ export function getPackageModuleContainer(package_: any) {
 }
 
 /**
- * @param {Object} pkg
+ * @param {Package} packageDetails
  * @returns {string} The actual location on-disk for this package.
  */
-export function getPackageDirectory(package_: any) {
-    const packageName = getPackageName(package_);
-
-    const temporary = getPackageModuleContainer(package_);
+export function getPackageDirectory(packageDetails: Package): string {
+    const packageName = getPackageName(packageDetails);
+    const temporary = getPackageModuleContainer(packageDetails);
     return path.resolve(temporary, packageName);
 }
 
-export function getPackageJson(package_: any) {
-    return parseJson(getPackageDirectory(package_));
+export function getPackageJson(packageDetails: Package) {
+    return parseJson(getPackageDirectory(packageDetails));
 }
 
-export function getPackageVersion(package_: any) {
-    return `${getPackageName(package_)}@${getPackageJson(package_).version}`;
+export function getPackageVersion(packageDetails: Package) {
+    return `${getPackageName(packageDetails)}@${getPackageJson(packageDetails).version}`;
 }
