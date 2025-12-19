@@ -19,11 +19,12 @@
     "pre-push": "pnpm run check:format",
     "preinstall": "node scripts/disallow-npm.js",
     "publish": "node scripts/publish.js",
-    "security": "pnpm audit --audit-level=moderate"
+    "security": "pnpm audit --audit-level=moderate",
+    "test": "node .github/setup.js"
   },
   "dependencies": {
-    "conventional-commits-parser": "^3.2.3",
-    "semver": "^7.5.2",
+    "conventional-commits-parser": "^3.2.1",
+    "semver": "^7.3.5",
     "tslib": "^2.2.0",
     "write-pkg": "^4.0.0"
   },
